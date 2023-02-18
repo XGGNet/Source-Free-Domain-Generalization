@@ -2,5 +2,13 @@ data/
 logs/
 build/
 dist/
-tllib/
 tllib.egg-info/
+
+pyc#
+
+tllib/**
+clip/**
+
+
+*.pyc
+

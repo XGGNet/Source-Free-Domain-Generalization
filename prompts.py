@@ -1,6 +1,8 @@
 categories_list = {
     'PACS':['dog','elephant','giraffe','guitar', 'horse', 'house', 'person'],
+
     'VLCS':['car', 'person', 'dog', 'bird', 'chair'],
+
     'OfficeHome':['Drill', 'Exit_Sign', 'Bottle', 'Glasses', 'Computer', 'File_Cabinet', 'Shelf', 'Toys', 'Sink',
         'Laptop', 'Kettle', 'Folder', 'Keyboard', 'Flipflops', 'Pencil', 'Bed', 'Hammer', 'ToothBrush', 'Couch',
         'Bike', 'Postit_Notes', 'Mug', 'Webcam', 'Desk_Lamp', 'Telephone', 'Helmet', 'Mouse', 'Pen', 'Monitor',
@@ -8,7 +10,9 @@ categories_list = {
         'Fan', 'Ruler', 'Pan', 'Screwdriver', 'Trash_Can', 'Printer', 'Speaker', 'Eraser', 'Bucket', 'Chair',
         'Calendar', 'Calculator', 'Flowers', 'Lamp_Shade', 'Spoon', 'Candles', 'Clipboards', 'Scissors', 'TV',
         'Curtains', 'Fork', 'Soda', 'Table', 'Knives', 'Oven', 'Refrigerator', 'Marker'],
+
     'Terra':['coyote', 'dog', 'raccoon', 'opossum', 'bird', 'bobcat', 'squirrel', 'cat', 'rabbit', 'empty'],
+
     'DomainNet':['aircraft_carrier', 'airplane', 'alarm_clock', 'ambulance', 'angel', 'animal_migration', 'ant', 'anvil',
         'apple', 'arm', 'asparagus', 'axe', 'backpack', 'banana', 'bandage', 'barn', 'baseball', 'baseball_bat',
         'basket', 'basketball', 'bat', 'bathtub', 'beach', 'bear', 'beard', 'bed', 'bee', 'belt', 'bench',
@@ -55,14 +59,21 @@ categories_list = {
 # Expanded: adds 19 additional domains based on "Combined"
 domain_banks_list = {
     'Empty': [''],
+
     'PACS':['photo', 'art', 'cartoon', 'sketch'],
+
     'DomainNet':['clipart', 'infograph', 'painting', 'quickdraw', 'real', 'sketch'],
+
     'OfficeHome':['art', 'clipart', 'product', 'real'],
+
     # for VLCS and Terra, since the domains share the same style, we use "Empty" as the "Task" bank.
     'VLCS':[''],
+
     'Terra':[''],
+
     'Combined':['', 'photo', 'art', 'cartoon', 'sketch', 'clipart', 'infograph', 'painting', 'quickdraw', 'real','product'],
-    'Expanded':['', 'photo', 'art', 'cartoon', 'sketch', 'clipart', 'infograph', 'painting', 'quickdraw', 'real','product', 
+
+    'Expanded':['', 'photo', 'art', 'cartoon', 'sketch', 'clipart', 'infograph', 'painting', 'quickdraw', 'real','product',             
     'realistic', 'pixel_style', 'abstract', 'fantasy', 'mysterious', 'science_fiction', 'blurry', 'geometric', 'hazy', 'mosaic', 
     'doodle', 'graffiti', 'art_nouveau', 'expressionism', 'cubism', 'fauvism', 'futurism', 'surrealism', 'minimalism']  
 
@@ -85,3 +96,18 @@ def get_prompts(dataset, bank_type):
             text_all.append([t,s])
 
     return [f"a {s[0]} photo of a {t[0]}" for t,s in text_all], len(categories), len(domain_bank)
+
+def get_std_prompts(dataset):
+    """
+    generate (class_num x domain_num) prompts from the combinations of categories and domain_bank
+    """
+    categories = categories_list[dataset]
+
+    text_target = [[a] for a in categories]
+
+    text_all = []
+
+    for t in text_target:
+        text_all.append([t])
+
+    return [f"a photo of a {t[0]}" for t in text_all], len(categories)
