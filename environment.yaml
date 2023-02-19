@@ -116,7 +116,7 @@ dependencies:
   - six=1.16.0=pyhd3eb1b0_1
   - sqlite=3.39.3=h5082296_0
   - tbb=2021.5.0=hd09550d_0
-  - timm=0.6.7=py_0
+  # - timm=0.6.7=py_0
   - tk=8.6.12=h1ccaba5_0
   - toml=0.10.2=pyhd3eb1b0_0
   - torchaudio=0.12.1=py38_cu113

@@ -20,48 +20,45 @@ from tllib.utils.meter import AverageMeter, ProgressMeter
 from tllib.utils.logger import CompleteLogger
 from tllib.utils.analysis import tsne, a_distance
 from autoencoder import auto_encoder
-from prompts import *
-
-from pdb import set_trace as st
+from prompts import get_prompts
 
 from PIL import ImageFile
 import warnings
+warnings.filterwarnings("ignore")
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def loss_all(input, output, num_class, num_style, device,lamda1, lamda2):
+    """
+    The total loss of CAE to generate domain unified prompt representations
+    """
+    # reconstruction loss
+    loss_rec = input @ output.t() 
+    eye = torch.eye(loss_rec.shape[0]).to(device)
+    loss_rec  = loss_rec  * eye
+    loss_rec = -1 * loss_rec.sum()/loss_rec.shape[0]
+    # intra-class loss
+    output = output.view(num_class, num_style, -1)
+    output_mean = torch.mean(output, dim=1).unsqueeze(1).repeat(1,num_style,1)
+    loss_intra = -1 * torch.sum(output * output_mean, dim=2).mean()
+    # inter-class loss
+    loss_inter = 0
+    output = output.transpose(0,1)
+    for style in range(num_style):
+        temp = output[style] @ output[style].t()
+        temp = temp * (1-torch.eye(num_class).to(device))
+        loss_inter += (temp.sum() / (num_class*(num_class-1)))
+    loss_inter = loss_inter/num_style
+    loss_all =  loss_rec+ lamda1 * loss_intra + lamda2 * loss_inter
 
-
-# def loss_all(input, output, num_class, num_style, device,lamda1, lamda2):
-#     """
-#     The total loss of CAE to generate domain unified prompt representations
-#     """
-#     # reconstruction loss
-#     loss_rec = input @ output.t() 
-#     eye = torch.eye(loss_rec.shape[0]).to(device)
-#     loss_rec  = loss_rec  * eye
-#     loss_rec = -1 * loss_rec.sum()/loss_rec.shape[0]
-#     # intra-class loss
-#     output = output.view(num_class, num_style, -1)
-#     output_mean = torch.mean(output, dim=1).unsqueeze(1).repeat(1,num_style,1)
-#     loss_intra = -1 * torch.sum(output * output_mean, dim=2).mean()
-#     # inter-class loss
-#     loss_inter = 0
-#     output = output.transpose(0,1)
-#     for style in range(num_style):
-#         temp = output[style] @ output[style].t()
-#         temp = temp * (1-torch.eye(num_class).to(device))
-#         loss_inter += (temp.sum() / (num_class*(num_class-1)))
-#     loss_inter = loss_inter/num_style
-#     loss_all =  loss_rec+ lamda1 * loss_intra + lamda2 * loss_inter
-
-#     return loss_all
+    return loss_all
 
 def encode_t(model, args, device):
     """
     Encode prompts (class_num x domain_num)
     """
     flag = 0
-    # prompts, class_num, domain_num = get_prompts(args.data, args.bank_type)
-    prompts, class_num = get_std_prompts(args.data)
-    # st()
+    prompts, class_num, domain_num = get_prompts(args.data, args.bank_type)
     with torch.no_grad():
         for prompt in prompts:
             text = clip.tokenize(prompt).to(device)
@@ -73,24 +70,21 @@ def encode_t(model, args, device):
                 flag = 1
             else:
                 text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
+    return text_features_all.to(device), class_num, domain_num
 
-    # st()
-    # text_features_all - [7,1024]
-    return text_features_all.to(device), class_num
+def train(cae, model, args, device, optimizer, text_features, class_num, domain_num):
+    """
+    training process of CAE using text features (no image is involved) 
+    """
+    model.train()
+    out_features = cae(text_features)
+    loss = loss_all(text_features, out_features, class_num, domain_num, device,args.intra,args.inter)
 
-# def train(cae, model, args, device, optimizer, text_features, class_num, domain_num):
-#     """
-#     training process of CAE using text features (no image is involved) 
-#     """
-#     model.train()
-#     out_features = cae(text_features)
-#     loss = loss_all(text_features, out_features, class_num, domain_num, device,args.intra,args.inter)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
-#     optimizer.zero_grad()
-#     loss.backward()
-#     optimizer.step()
-
-def test(cae, model, args, device, optimizer, text_features, class_num, test_loader):
+def test(cae, model, args, device, optimizer, text_features, class_num, domain_num, test_loader):
     """
     inference process of the method on testing set
     """
@@ -105,14 +99,13 @@ def test(cae, model, args, device, optimizer, text_features, class_num, test_loa
     with torch.no_grad():
         # the reshaping is for mean pooling on the domain dimension
         in_features = text_features
+
         # out_features = cae(in_features)
-        # text_features_rec = out_features.view(class_num, -1)
+        out_features = in_features
+
+        text_features_rec = out_features.view(class_num, domain_num, -1)
         # mean pooling to generate domain unified prompt representations for each class
-        # text_features_rec = torch.mean(text_features_rec, dim=1)
-        
-        # st()
-        text_features_rec = in_features.view(class_num, -1)
-        
+        text_features_rec = torch.mean(text_features_rec, dim=1)
         end = time.time()
         for i, (images, target, _) in enumerate(test_loader):
             images = images.to(device)
@@ -138,19 +131,11 @@ def test(cae, model, args, device, optimizer, text_features, class_num, test_loa
             if i % args.print_freq == 0:
                 progress.display(i)
 
-    print(f'{args.targets} * Acc@1 {top1.avg:.3f} '.format(top1=top1))
+    print(' * Acc@1 {top1.avg:.3f} '.format(top1=top1))
     return top1.avg
 
 
 def main(args: argparse.Namespace):
-
-    warnings.filterwarnings("ignore")
-    ImageFile.LOAD_TRUNCATED_IMAGES = True
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # st()
-
     logger = CompleteLogger(args.log, args.phase)
     print(args)
 
@@ -185,26 +170,23 @@ def main(args: argparse.Namespace):
                                         download=True, transform=preprocess, seed=args.seed)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
 
-    # st()
-
     print("test_dataset_size: ", len(test_dataset))
 
     # start training
     best_test_acc1 = 0.
     
     # encode prompts (class_num x domain_num)
-    text_features, class_num = encode_t(model, args, device)
+    text_features, class_num, domain_num = encode_t(model, args, device)
 
-    # for epoch in range(args.epochs):
-    #     # train CAE with no image data
-    #     train(autoencoder, model, args, device, optimizer, text_features, class_num, domain_num)
+    for epoch in range(args.epochs):
+        # train CAE with no image data
+        # train(autoencoder, model, args, device, optimizer, text_features, class_num, domain_num)
 
         # evaluate on testing set
         # if epoch % 100 == 0:
-
-    print("Evaluate on test set...")
-    best_test_acc1 = max(best_test_acc1, test(autoencoder, model, args, device, optimizer, text_features, class_num, test_loader))
-    print(best_test_acc1)
+        print("Evaluate on test set...")
+        best_test_acc1 = max(best_test_acc1, test(autoencoder, model, args, device, optimizer, text_features, class_num, domain_num, test_loader))
+        print(best_test_acc1)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Baseline for Domain Generalization')
