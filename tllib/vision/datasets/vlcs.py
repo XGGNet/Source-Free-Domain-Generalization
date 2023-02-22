@@ -49,6 +49,7 @@ class VLCS(ImageList):
         "V": "image_list/VOC2007.txt",
     }
     CLASSES = ['car','person', 'dog', 'bird', 'chair']
+    # CLASSES = ['bird','car', 'chair', 'bird', 'chair']
 
     def __init__(self, root: str, task: str, download: Optional[bool] = False, **kwargs):
         assert task in self.image_list
@@ -64,4 +65,4 @@ class VLCS(ImageList):
 
     @classmethod
     def domains(cls):
-        return list(cls.image_list.keys())
+        return list(cls.image_list.keys())   

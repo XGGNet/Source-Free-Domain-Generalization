@@ -22,6 +22,8 @@ from tllib.utils.analysis import tsne, a_distance
 from autoencoder import auto_encoder
 from prompts import get_prompts
 
+from pdb import set_trace as st
+
 from PIL import ImageFile
 import warnings
 warnings.filterwarnings("ignore")
@@ -59,18 +61,27 @@ def encode_t(model, args, device):
     """
     flag = 0
     prompts, class_num, domain_num = get_prompts(args.data, args.bank_type)
+
     with torch.no_grad():
-        for prompt in prompts:
-            text = clip.tokenize(prompt).to(device)
-            text_features = model.encode_text(text).float()
-            text_features = text_features / text_features.norm(dim=1, keepdim=True)
-            if flag==0:
-                # text features have to be placed on cpu beacuse of the limitation of gpu memorys.
-                text_features_all = text_features.to('cpu')
-                flag = 1
-            else:
-                text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
+        text_inputs = torch.cat( [clip.tokenize(prompt) for prompt in prompts]).to(device)
+        text_features = model.encode_text(text_inputs).float()
+        text_features_all = F.normalize(text_features)
+
+    # with torch.no_grad():
+    #     for prompt in prompts:
+    #         text = clip.tokenize(prompt).to(device)
+    #         text_features = model.encode_text(text).float()
+    #         text_features = text_features / text_features.norm(dim=1, keepdim=True)
+    #         if flag==0:
+    #             # text features have to be placed on cpu beacuse of the limitation of gpu memorys.
+    #             text_features_all = text_features.to('cpu')
+    #             flag = 1
+    #         else:
+    #             text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
+
+
     return text_features_all.to(device), class_num, domain_num
+
 
 def train(cae, model, args, device, optimizer, text_features, class_num, domain_num):
     """
@@ -100,12 +111,15 @@ def test(cae, model, args, device, optimizer, text_features, class_num, domain_n
         # the reshaping is for mean pooling on the domain dimension
         in_features = text_features
 
+        # st()
+
         # out_features = cae(in_features)
         out_features = in_features
 
         text_features_rec = out_features.view(class_num, domain_num, -1)
         # mean pooling to generate domain unified prompt representations for each class
         text_features_rec = torch.mean(text_features_rec, dim=1)
+
         end = time.time()
         for i, (images, target, _) in enumerate(test_loader):
             images = images.to(device)
@@ -178,15 +192,15 @@ def main(args: argparse.Namespace):
     # encode prompts (class_num x domain_num)
     text_features, class_num, domain_num = encode_t(model, args, device)
 
-    for epoch in range(args.epochs):
+    # for epoch in range(args.epochs):
         # train CAE with no image data
         # train(autoencoder, model, args, device, optimizer, text_features, class_num, domain_num)
 
         # evaluate on testing set
         # if epoch % 100 == 0:
-        print("Evaluate on test set...")
-        best_test_acc1 = max(best_test_acc1, test(autoencoder, model, args, device, optimizer, text_features, class_num, domain_num, test_loader))
-        print(best_test_acc1)
+        # print("Evaluate on test set...")
+    best_test_acc1 = max(best_test_acc1, test(autoencoder, model, args, device, optimizer, text_features, class_num, domain_num, test_loader))
+    print(best_test_acc1)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Baseline for Domain Generalization')
@@ -229,6 +243,7 @@ if __name__ == '__main__':
     parser.add_argument("--log", type=str, default='baseline',
                         help="Where to save logs, checkpoints and debugging images.")
     parser.add_argument("--bank_type", type=str, default='Combined')
+    # parser.add_argument("--bank_type", type=str, default='PACS')
     parser.add_argument("--phase", type=str, default='train', choices=['train', 'test', 'analysis'],
                         help="When phase is 'test', only test the model."
                              "When phase is 'analysis', only analysis the model.")

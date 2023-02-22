@@ -28,9 +28,14 @@ import sys
 sys.path.append("..") 
 
 import utils
+from tllib.utils.logger import CompleteLogger
+import warnings
 
 
 def main(args):
+    warnings.filterwarnings("ignore")
+    logger = CompleteLogger(args.log, args.phase)
+
     #region
     '''
     load
@@ -40,7 +45,9 @@ def main(args):
     # hyperparameters
 
     # hparams['model_size'] = "ViT-B/32" 
-    hparams['model_size'] = "RN50" 
+    hparams['model_size'] = args.arch
+    
+    # "RN50" 
 
     # Options:
     # ['RN50',
@@ -145,8 +152,8 @@ def main(args):
         classes_to_load = None #dataset.classes
         hparams['descriptor_fname'] = 'descriptors_cub'
 
-    elif hparams['dataset'] == 'pacs':
-        hparams['data_dir'] = pathlib.Path(PACS_DIR)
+    else:
+        # hparams['data_dir'] = pathlib.Path(PACS_DIR)
 
         model, preprocess = clip.load(hparams['model_size'], device=hparams['device'], jit=False)
 
@@ -157,9 +164,13 @@ def main(args):
         classes_to_load = None
 
 
-        # hparams['descriptor_fname'] = 'descriptors_pacs'
-        hparams['descriptor_fname'] = f'PACS/descriptors_pacs_{str.lower(args.targets[0])}'
+        hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}'
+
+        # hparams['descriptor_fname'] = f'PACS/descriptors_pacs_{str.lower(args.targets[0])}'
         
+        # hparams['descriptor_fname'] = 'PACS/descriptors_pacs_domain_bank_pacs'
+
+        # hparams['descriptor_fname'] = 'PACS/descriptors_pacs_domain_bank_pacs_no_merged'
 
         # test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
 
@@ -185,7 +196,7 @@ def main(args):
 
         for k, v in gpt_descriptions.items():
             tokens = clip.tokenize(v).to(hparams['device'])
-            description_encodings[k] = F.normalize(model.encode_text(tokens))
+            description_encodings[k] = F.normalize(model.encode_text(tokens).float())
         return description_encodings
 
     def compute_label_encodings(model):
@@ -196,36 +207,63 @@ def main(args):
 
         # st()
 
-        label_encodings = F.normalize(
-            model.encode_text(
-            clip.tokenize(
-            prompts
-            ).to(hparams['device'])
-            )
-            )
+        # label_encodings = F.normalize(
+        #     model.encode_text(
+        #     clip.tokenize(
+        #     prompts
+        #     ).to(hparams['device'])
+        #     )
+        #     )
+
+        with torch.no_grad():
+            text_inputs = torch.cat( [clip.tokenize(prompt) for prompt in prompts]).to(hparams['device'])
+            text_features = model.encode_text(text_inputs).float()
+            label_encodings = F.normalize(text_features)
+
 
         # st()
         # label_encodings > [7, 1024]
-        return label_encodings
+        return prompts, label_encodings
 
     def compute_label_sentence_encodings(model):
 
 
         prompts = ["a photo of a "+ wordify(l)  for l in label_to_classname]
 
+        # flag=0
+
         # st()
 
-        label_encodings = F.normalize(
-            model.encode_text(
-            clip.tokenize(
-            prompts
-            ).to(hparams['device'])
-            )
-            )
+        # label_encodings = F.normalize(
+        #     model.encode_text( clip.tokenize(prompts).to(hparams['device']) ) #7,1024
+        #     )
+
+        # !!!
+        # 同时编码多个token 和 一个token的结果是不一样的..
+
+        with torch.no_grad():
+            text_inputs = torch.cat( [clip.tokenize(prompt) for prompt in prompts]).to(hparams['device'])
+            text_features = model.encode_text(text_inputs).float()
+            label_encodings = F.normalize(text_features)
+
+
+        # with torch.no_grad():
+        #     for prompt in prompts:
+        #         text = clip.tokenize(prompt).to(device)
+        #         text_features = model.encode_text(text).float()
+
+        #         text_features = text_features / text_features.norm(dim=1, keepdim=True)
+
+        #         if flag==0:
+        #             # text features have to be placed on cpu beacuse of the limitation of gpu memorys.
+        #             text_features_all = text_features.to('cpu')
+        #             flag = 1
+        #         else:
+        #             text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
 
         # st()
         # label_encodings > [7, 1024]
-        return label_encodings
+        return prompts, label_encodings
 
     def aggregate_similarity(similarity_matrix_chunk, aggregation_method='mean'):
         if aggregation_method == 'max': return similarity_matrix_chunk.max(dim=1)[0]
@@ -242,7 +280,8 @@ def main(args):
             indices = indices[:n]
         
         for index in indices:
-            show_single_image(images[index])
+            # show_single_image(images[index])
+        
             print(f"Index: {index}")
             if labels is not None:
                 true_label = labels[index]
@@ -256,6 +295,8 @@ def main(args):
                 predicted_label2 = predictions2[index]
                 predicted_label_name2 = label_to_classname[predicted_label2]
                 print(f"Predicted label 2 (CLIP): {predicted_label_name2}")
+
+            save_single_image(os.path.join(args.log,'visualize',f'{index}_GT-{true_label_name}_des-{predicted_label_name}_clip-{predicted_label_name2}.png'), images[index])
             
             print("\n")
             
@@ -301,12 +342,16 @@ def main(args):
     def print_descriptor_similarity(image_description_similarity, index, label, label_name, label_type="provided"):
         # print(f"Total similarity to {label_name} ({label_type} label) descriptors: {aggregate_similarity(image_description_similarity[label][index].unsqueeze(0)).item()}")
         print(f"Total similarity to {label_name} ({label_type} label) descriptors:")
-        print(f"Average:\t\t{100.*aggregate_similarity(image_description_similarity[label][index].unsqueeze(0)).item()}")
+
+        # print(f"Average:\t\t{100.*aggregate_similarity(image_description_similarity[label][index].unsqueeze(0)).item()}")
+        print(f"Average:\t\t{aggregate_similarity(image_description_similarity[label][index].unsqueeze(0)).item()}")
+
         label_descriptors = gpt_descriptions[label_name]
         for k, v in sorted(zip(label_descriptors, image_description_similarity[label][index]), key = lambda x: x[1], reverse=True):
             k = unmodify_dict[label_name][k]
             # print("\t" + f"matched \"{k}\" with score: {v}")
-            print(f"{k}\t{100.*v}")
+            # print(f"{k}\t{100.*v}")
+            print(f"{k}\t{v}")
             
     def print_max_descriptor_similarity(image_description_similarity, index, label, label_name):
         max_similarity, argmax = image_description_similarity[label][index].max(dim=0)
@@ -403,13 +448,23 @@ def main(args):
     (image [3,224,224], label 185)
     '''
     # st()
-    dataloader = DataLoader(dataset, bs, shuffle=True, num_workers=16, pin_memory=True)
+    dataloader = DataLoader(dataset, bs, shuffle=False, num_workers=16, pin_memory=True)
+
+    # st()
 
     print("Loading model...")
 
     device = torch.device(hparams['device'])
     # load model
-    model, preprocess = clip.load(hparams['model_size'], device=device, jit=False)
+    # model, preprocess = clip.load(hparams['model_size'], device=device, jit=False)
+
+    cnt = 0
+    for name, parameters in model.named_parameters():
+        cnt += parameters.mean()
+
+    # st()
+        
+
     model.eval()
     model.requires_grad_(False)
 
@@ -419,9 +474,11 @@ def main(args):
     description_encodings = compute_description_encodings(model)
 
     # 得到标准prompt的 text feature
-    label_encodings = compute_label_encodings(model)
+    label_prompt, label_encodings = compute_label_encodings(model)
 
-    label_sentence_encodings = compute_label_sentence_encodings(model)
+    sen_prompt, label_sentence_encodings = compute_label_sentence_encodings(model)
+
+    # st()
 
 
     print("Evaluating...")
@@ -435,6 +492,8 @@ def main(args):
     # clip_accuracy_metric_top5 = torchmetrics.Accuracy(task="multiclass", num_classes=n_classes,top_k=5).to(device)
 
     
+    ensemble_accuracy_metric = torchmetrics.Accuracy().to(device)
+
     lang_accuracy_metric = torchmetrics.Accuracy().to(device)
     # lang_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
 
@@ -450,25 +509,31 @@ def main(args):
         
         images = images.to(device)
         labels = labels.to(device)
-        
-        image_encodings = model.encode_image(images)
-        image_encodings = F.normalize(image_encodings)
+
+        # st()
+
+   
+        image_encodings = model.encode_image(images).float()
+
+
+        image_encodings = F.normalize(image_encodings) # 和 image_features /= image_features.norm(dim=-1, keepdim=True) 等价
+
+
 
         '''
         计算CLIP_only_label的指标结果
         '''
         
-        image_labels_similarity = image_encodings @ label_encodings.T
-        clip_predictions = image_labels_similarity.argmax(dim=1)
-        
-        clip_acc = clip_label_only_accuracy_metric(image_labels_similarity, labels)
+        # image_labels_similarity = 100*image_encodings @ label_encodings.T
+        # clip_predictions = image_labels_similarity.argmax(dim=1)
+        # clip_acc = clip_label_only_accuracy_metric(image_labels_similarity, labels)
         # clip_acc_top5 = clip_accuracy_metric_top5(image_labels_similarity, labels)
 
-
-        image_labels_sen_similarity = image_encodings @ label_sentence_encodings.T
+        image_labels_sen_similarity = 100*image_encodings @ label_sentence_encodings.T
         clip_sen_predictions = image_labels_sen_similarity.argmax(dim=1)
-        
         clip_sen_acc = clip_accuracy_metric(image_labels_sen_similarity, labels)
+        
+
 
         # st()
         
@@ -478,7 +543,7 @@ def main(args):
         for i, (k, v) in enumerate(description_encodings.items()): # You can also vectorize this; it wasn't much faster for me
         ## k - class, v - description
 
-            dot_product_matrix = image_encodings @ v.T # 这是一个矩阵
+            dot_product_matrix = 100*image_encodings @ v.T # 这是一个矩阵
             
             image_description_similarity[i] = dot_product_matrix
             image_description_similarity_cumulative[i] = aggregate_similarity(image_description_similarity[i]) #这里是取均值
@@ -486,13 +551,24 @@ def main(args):
             
         # create tensor of similarity means
         cumulative_tensor = torch.stack(image_description_similarity_cumulative,dim=1)
-            
-        
+
         descr_predictions = cumulative_tensor.argmax(dim=1)
-        
         
         lang_acc = lang_accuracy_metric(cumulative_tensor.softmax(dim=-1), labels)
         # lang_acc_top5 = lang_accuracy_metric_top5(cumulative_tensor.softmax(dim=-1), labels)
+
+        ensemble_similarity = (image_labels_sen_similarity + cumulative_tensor) / 2
+
+        ensem_acc = ensemble_accuracy_metric(ensemble_similarity.argmax(dim=1), labels)
+
+        if batch_number==0:
+            print("\n")
+
+        # show_from_indices(torch.where(descr_predictions != clip_sen_predictions)[0], images, labels, descr_predictions, clip_sen_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_sen_similarity)
+
+        # show_from_indices(torch.where(clip_sen_predictions != labels)[0], images, labels, descr_predictions, clip_sen_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_sen_similarity)
+
+        # st()
         
         
 
@@ -501,18 +577,26 @@ def main(args):
     print(f'target domain is:{args.targets}')
     print(f'test_dataset size is: {len(dataset)}')
     accuracy_logs = {}
+
+    accuracy_logs["Total Ensemble Top-1 Accuracy: "] = 100*ensemble_accuracy_metric.compute().item()
+
     accuracy_logs["Total Description-based Top-1 Accuracy: "] = 100*lang_accuracy_metric.compute().item()
     # accuracy_logs["Total Description-based Top-5 Accuracy: "] = 100*lang_accuracy_metric_top5.compute().item()
 
-    accuracy_logs["Total CLIP-Label Top-1 Accuracy: "] = 100*clip_label_only_accuracy_metric.compute().item()
-# 
+#     accuracy_logs["Total CLIP-Label Top-1 Accuracy: "] = 100*clip_label_only_accuracy_metric.compute().item()
+# # 
     accuracy_logs["Total CLIP-Standard Top-1 Accuracy: "] = 100*clip_accuracy_metric.compute().item()
     # accuracy_logs["Total CLIP-Standard Top-5 Accuracy: "] = 100*clip_accuracy_metric_top5.compute().item()
 
     # print the dictionary
-    # print("\n")
     for key, value in accuracy_logs.items():
-        print(key, f'{value:.3f}')
+        # print(key, f'{value:.3f}')
+          print(key, value, f'** {value:.3f}')
+
+
+
+
+    print("\n")
 
     #endregion
 
@@ -531,7 +615,19 @@ if __name__ == '__main__':
     parser.add_argument('--train-resizing', type=str, default='default')
     parser.add_argument('--val-resizing', type=str, default='default')
     # model parameters
-    parser.add_argument('-a', '--arch', metavar='ARCH', default='vitb16')
+
+    parser.add_argument('-a', '--arch', metavar='ARCH', default='RN50')
+    # parser.add_argument('-a', '--arch', metavar='ARCH', default='vitb16')
+    # ['RN50',
+    #  'RN101',
+    #  'RN50x4',
+    #  'RN50x16',
+    #  'RN50x64',
+    #  'ViT-B/32',
+    #  'ViT-B/16',
+    #  'ViT-L/14',
+    #  'ViT-L/14@336px']
+
     parser.add_argument('--no-pool', action='store_true', help='no pool layer after the feature extractor.')
     parser.add_argument('--finetune', action='store_true', help='whether use 10x smaller lr for backbone')
     parser.add_argument('--freeze-bn', action='store_true', help='whether freeze all bn layers')

@@ -108,6 +108,6 @@ def get_std_prompts(dataset):
     text_all = []
 
     for t in text_target:
-        text_all.append([t])
+        text_all.append(t)
 
     return [f"a photo of a {t[0]}" for t in text_all], len(categories)

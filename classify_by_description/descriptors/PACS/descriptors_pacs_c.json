@@ -1,1 +1,16 @@
-{"dog": ["wet nose", "pointed ears", "short or long fur", "tail", "four toes on each paw", "black, brown, white, or multi-colored fur", "eyes that are usually brown or black"], "elephant": ["gray or brown in color", "long trunk", "two large ears", "tusks", "four toenails on each foot", "curved back", "thick tail"], "giraffe": ["long legs", "spotted coat", "tufted tail", "long, black horns", "large eyes", "long tongue", "two-toed hooves"], "guitar": ["stringed instrument", "six strings", "frets on the neck", "a sound hole", "a bridge", "tuning pegs", "a pickguard", "a headstock", "a body with a curved shape"], "horse": ["long mane and tail", "hooves", "large eyes", "long muzzle", "muscular body", "white, black, brown, or grey coat"], "house": ["a roof", "walls", "windows", "doors", "chimney", "porch", "driveway", "yard", "mailbox"], "person": ["two arms and two legs", "head with two eyes, a nose, and a mouth", "hair on the head", "clothing", "facial features such as eyebrows, eyelashes, and ears", "posture and gestures"]}
+{
+    "dog": ["wet nose", "pointed ears", "short or long fur", "tail", "four toes on each paw", "black, brown, white, or multi-colored fur", "eyes that are usually brown or black"], 
+    
+    "elephant": ["gray or brown in color", "long trunk", "two large ears", "tusks", "four toenails on each foot", "curved back", "thick tail"], 
+    
+    "giraffe": ["long legs", "spotted coat", "tufted tail", "long, black horns", "large eyes", "long tongue", "two-toed hooves"], 
+    
+    "guitar": ["stringed instrument", "six strings", "frets on the neck", "a sound hole", "a bridge", "tuning pegs", "a pickguard", "a headstock", "a body with a curved shape"], 
+    
+    "horse": ["long mane and tail", "hooves", "large eyes", "long muzzle", "muscular body", "white, black, brown, or grey coat"], 
+    
+    "house": ["a roof", "walls", "windows", "doors", "chimney", "porch", "driveway", "yard", "mailbox"], 
+    
+    "person": ["two arms and two legs", "head with two eyes, a nose, and a mouth", "hair on the head", "clothing", "facial features such as eyebrows, eyelashes, and ears", "posture and gestures"]
+}
+

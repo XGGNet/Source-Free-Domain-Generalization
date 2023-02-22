@@ -1,0 +1,15 @@
+{
+    
+    "dog": ["short or long fur", "black, brown, white, or multi-colored fur", "four toes on each paw", "muzzle", "four toes on each foot", "eyes of various colors", "paws", "wet nose", "four legs", "pointed ears", "eyes that are usually brown or black", "muzzle and snout", "eyes", "tail"], 
+    
+    "elephant": ["large ears", "small tail", "long trunk", "gray or brown skin", "long tail", "gray or brown in color", "four legs", "tusks", "thick tail", "curved back", "four toenails on each foot", "thick, wrinkled skin", "two tusks", "two large ears", "large, curved back"], 
+    
+    "giraffe": ["long, prehensile tongue", "dark patches on a light background", "long, black tongue", "long, black-tipped hooves", "spotted coat", "tufted tail", "long tongue", "long, black-tipped horns", "yellow, brown, or white fur", "large eyes", "long tail", "long, tufted tail", "two horns on the head", "two-toed hooves", "long, black-tipped tail", "long legs", "long, black-tipped legs", "long, black-tipped tongue", "yellowish-brown or reddish-brown fur", "long, black horns", "white or cream-colored spots", "large, dark eyes", "long neck", "dark patches on the fur"], 
+    
+    "guitar": ["a headstock", "bridge", "sound hole", "neck and headstock", "a bridge", "a body with a curved shape", "pickguard", "six strings", "frets", "wooden body", "neck", "headstock", "a pickguard", "strings running along the neck", "stringed instrument", "frets on the neck", "strings running from the bridge to the tuning pegs", "pickups", "a curved body", "a sound hole", "tuning pegs"], 
+    
+    "horse": ["long, muscular legs", "large head with long ears", "hooves", "long, flowing mane and tail", "broad chest", "large eyes", "long, pointed ears", "long muzzle", "a mane and tail", "large, round eyes", "long snout", "white, black, brown, or grey coat", "long, slender neck", "muscular body", "long mane and tail"], 
+    
+    "house": ["walls", "windows and doors", "a roof", "windows", "outdoor furniture", "rectangular or square shape", "porch or deck", "roof", "chimney", "doors", "landscaping", "siding", "mailboxes", "mailbox or flagpole", "lawn or garden", "yard", "driveway or walkway", "porch or balcony", "driveway", "walls and roof", "door", "mailbox", "mail box", "landscaping such as trees, shrubs, and flowers", "porch"], 
+    
+    "person": ["posture and body language", "facial features such as eyes, nose, and mouth", "humanoid figure", "hair", "skin tone", "bipedal", "head with two eyes, a nose, and a mouth", "clothing", "hair on the head", "hair color and style", "a torso", "facial expressions", "a head with two eyes, a nose, and a mouth", "skin color", "posture", "hands and feet", "facial features such as eyebrows, eyelashes, and ears", "two arms and two legs"]}

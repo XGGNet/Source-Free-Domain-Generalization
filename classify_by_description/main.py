@@ -4,9 +4,20 @@ from tqdm import tqdm
 from pdb import set_trace as st
 import argparse
 
+import sys
+sys.path.append("..") 
+
+import utils
+from tllib.utils.logger import CompleteLogger
+import warnings
+
 
 
 seed_everything(hparams['seed'])
+
+warnings.filterwarnings("ignore")
+logger = CompleteLogger('logs/clip_resnet50/CUB', 'train')
+
 
 bs = hparams['batch_size']
 
@@ -40,11 +51,11 @@ print("Evaluating...")
 # class_set = [dataset[i][1] for i in range(len(dataset))]
 # num_classes = max(class_set)
 
-lang_accuracy_metric = torchmetrics.Accuracy(task="multiclass", num_classes=n_classes).to(device)
-lang_accuracy_metric_top5 = torchmetrics.Accuracy(task="multiclass",num_classes=n_classes, top_k=5).to(device)
+lang_accuracy_metric = torchmetrics.Accuracy().to(device)
+lang_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
 
-clip_accuracy_metric = torchmetrics.Accuracy(task="multiclass", num_classes=n_classes).to(device)
-clip_accuracy_metric_top5 = torchmetrics.Accuracy(task="multiclass", num_classes=n_classes,top_k=5).to(device)
+clip_accuracy_metric = torchmetrics.Accuracy().to(device)
+clip_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
 
 for batch_number, batch in enumerate(tqdm(dataloader)):
     images, labels = batch
@@ -103,4 +114,6 @@ accuracy_logs["Total CLIP-Standard Top-5 Accuracy: "] = 100*clip_accuracy_metric
 print("\n")
 for key, value in accuracy_logs.items():
     print(key, value)
+
+show_from_indices(torch.where(descr_predictions != clip_predictions)[0], images, labels, descr_predictions, clip_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_similarity)
 

@@ -1,0 +1,10 @@
+{
+    "car": ["metal body", "headlights and taillights", "windshield and windows", "doors", "wheels", "bumpers", "grille", "exhaust pipe", "license plate"], 
+    
+    "person": ["two arms and two legs", "head with two eyes, a nose, and a mouth", "hair on the head", "clothing", "facial features such as eyes, nose, and mouth", "posture and body language"], 
+    
+    "dog": ["wet nose", "pointed ears", "short or long fur", "tail", "four toes on each foot", "black, brown, white, or multi-colored fur", "eyes that are usually dark brown or black"], 
+    
+    "bird": ["two-limbed creature", "feathers", "beak", "wings", "two legs", "two feet", "eyes", "tail", "bright colors or patterns"], 
+    
+    "chair": ["four legs", "a backrest", "armrests", "a seat cushion", "a frame made of wood, metal, or plastic", "upholstery or fabric covering", "decorative accents such as buttons, tufting, or trim"]}

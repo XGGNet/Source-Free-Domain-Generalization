@@ -6,6 +6,8 @@ import random
 
 from pdb import set_trace as st
 
+import cv2
+
 import json
 def load_json(filename):
     if not filename.endswith('.json'):
@@ -119,3 +121,15 @@ def show_single_image(image):
     ax.imshow(denorm_image.squeeze().permute(1, 2, 0).clamp(0,1))
     
     plt.show()
+
+def save_single_image(path, image):
+    # fig, ax = plt.subplots(figsize=(12, 12))
+    # ax.set_xticks([]); ax.set_yticks([])
+    denorm_image = denormalize(image.unsqueeze(0).cpu(), *stats)
+    # ax.imshow(denorm_image.squeeze().permute(1, 2, 0).clamp(0,1))
+    denorm_image = denorm_image.squeeze().permute(1, 2, 0).clamp(0,1)
+    save_image = (denorm_image.numpy())*255
+    save_image = cv2.cvtColor(save_image.astype(np.uint8), cv2.COLOR_BGR2RGB)
+    
+    cv2.imwrite(path, save_image)
+    # plt.show()

@@ -12,3 +12,7 @@ clip/**
 
 *.pyc
 
+classify_by_description/openai_key.py
+
+
+.vscode/launch.json

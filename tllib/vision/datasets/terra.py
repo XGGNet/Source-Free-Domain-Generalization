@@ -55,8 +55,8 @@ class Terra(ImageList):
         data_list_file = os.path.join(root, self.image_list[task])
 
         if download:
-            # list(map(lambda args: download_data(root, *args), self.download_list))
-            pass
+            list(map(lambda args: download_data(root, *args), self.download_list))
+            # pass
         else:
             list(map(lambda file_name, _: check_exits(root, file_name), self.download_list))
 

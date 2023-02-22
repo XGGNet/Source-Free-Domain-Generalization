@@ -61,22 +61,35 @@ def encode_t(model, args, device):
     flag = 0
     # prompts, class_num, domain_num = get_prompts(args.data, args.bank_type)
     prompts, class_num = get_std_prompts(args.data)
+
+    # with torch.no_grad():
+    #     text_inputs = torch.cat( [clip.tokenize(prompt) for prompt in prompts]).to(device)
+    #     text_features = model.encode_text(text_inputs).float()
+    #     text_features_all = F.normalize(text_features)
+
     # st()
     with torch.no_grad():
         for prompt in prompts:
             text = clip.tokenize(prompt).to(device)
+
+            # text是一样的
+
             text_features = model.encode_text(text).float()
+
             text_features = text_features / text_features.norm(dim=1, keepdim=True)
+
             if flag==0:
                 # text features have to be placed on cpu beacuse of the limitation of gpu memorys.
-                text_features_all = text_features.to('cpu')
+                text_features_all = text_features #text_features.to('cpu')
                 flag = 1
             else:
-                text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
+                # text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
+                text_features_all =  torch.cat((text_features_all, text_features), dim=0)
+
 
     # st()
     # text_features_all - [7,1024]
-    return text_features_all.to(device), class_num
+    return text_features_all, class_num
 
 # def train(cae, model, args, device, optimizer, text_features, class_num, domain_num):
 #     """
@@ -122,14 +135,22 @@ def test(cae, model, args, device, optimizer, text_features, class_num, test_loa
 
             # the normalization process of image features
             # the normalization process of text features is done in function autoencoder (class AutoEncoder).
+
             image_features = image_features / image_features.norm(dim=1, keepdim=True)
-            
+
+            # 到这里都一样
+      
             # calculate cosine similarity between the image representations and the domain unified prompt representations for inference
-            output = 100 * image_features @ text_features_rec.t()
+            # output = 100 * image_features @ text_features_rec.t()
+            output = 100*image_features @ text_features_rec.t()
+
+            # st()
             
             # measure accuracy and record loss
             acc1 = accuracy(output, target)[0]
             top1.update(acc1.item(), images.size(0))
+
+            # st()
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -174,6 +195,15 @@ def main(args: argparse.Namespace):
     elif args.arch == 'resnet50':
         model, preprocess = clip.load("RN50", device=device)
     
+    cnt = 0
+    for name, parameters in model.named_parameters():
+        cnt += parameters.mean()
+    # 参数量结果一样
+
+    model.eval()
+    
+    # st()
+
     # init CAE
     autoencoder = auto_encoder(in_shape=model.text_projection.shape[1]).to(device)
 
@@ -227,9 +257,14 @@ if __name__ == '__main__':
     parser.add_argument('--freeze-bn', action='store_true', help='whether freeze all bn layers')
     parser.add_argument('--dropout-p', type=float, default=0.1, help='only activated when freeze-bn is True')
     # training parameters
-    parser.add_argument('-b', '--batch-size', default=256, type=int,
-                        metavar='N',
-                        help='mini-batch size (default: 36)')
+
+    # parser.add_argument('-b', '--batch-size', default=256, type=int,
+    #                     metavar='N',
+    #                     help='mini-batch size (default: 36)')
+
+    parser.add_argument('-b', '--batch-size', default=640, type=int,
+                    metavar='N',
+                    help='mini-batch size (default: 36)')
     parser.add_argument('--lr', '--learning-rate', default=0.04, type=float,
                         metavar='LR', help='initial learning rate', dest='lr')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',

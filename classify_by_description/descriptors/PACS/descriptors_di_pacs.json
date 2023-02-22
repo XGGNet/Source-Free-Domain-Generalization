@@ -1,0 +1,15 @@
+{
+    "dog": ["wet nose", "pointed ears", "short or long fur", "tail", "four toes on each paw", "black, brown, white, or multi-colored fur", "eyes that are usually brown or black"], 
+    
+    "elephant": ["gray or brown skin", "long trunk", "large ears", "two tusks", "four legs", "large, curved back", "long tail"], 
+    
+    "giraffe": ["long legs", "spotted coat", "tufted tail", "two horns on the head", "large eyes", "long tongue", "hooves on the feet"], 
+    
+    "guitar": ["stringed instrument", "six strings", "frets", "tuning pegs", "a neck", "a body", "a sound hole", "a pickguard", "a bridge", "a headstock"], 
+    
+    "horse": ["long mane and tail", "hooves", "large eyes", "long muzzle", "muscular body", "white, black, brown, or grey coat"], 
+    
+    "house": ["a roof", "walls", "windows", "doors", "chimney", "porch", "driveway", "landscaping", "outdoor furniture", "mailboxes"], 
+    
+    "person": ["human body", "facial features such as eyes, nose, mouth, and ears", "hair color and style", "clothing", "posture", "skin tone", "facial expressions"]
+}
