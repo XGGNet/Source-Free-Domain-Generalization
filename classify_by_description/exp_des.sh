@@ -16,12 +16,12 @@
 # domain_list=('P' 'A' 'C' 'S')
 
 # VLCS
-dataset='VLCS'
-domain_list=('C' 'L' 'S' 'V')
+# dataset='VLCS'
+# domain_list=('C' 'L' 'S' 'V')
 
 # Office_home
-# dataset='OfficeHome'
-# domain_list=('Pr' 'Rw' 'Cl' 'Ar')
+dataset='OfficeHome'
+domain_list=('Pr' 'Rw' 'Cl' 'Ar')
 
 #Terra
 # dataset='Terra'
@@ -30,13 +30,13 @@ domain_list=('C' 'L' 'S' 'V')
 GPU_ID='0'
 data_dir='/home/lichenxin/data/Domainbed/'${dataset}
 
-# CUDA_VISIBLE_DEVICES=${GPU_ID} python main_DG.py ${data_dir} -d ${dataset} -t ${domain_list[0]} --log logs/clip_resnet50/${dataset}/${domain_list[0]}/description
+CUDA_VISIBLE_DEVICES=${GPU_ID} python main_DG.py ${data_dir} -d ${dataset} -t ${domain_list[0]} --log logs/clip_resnet50/${dataset}/${domain_list[0]}/description
 
 CUDA_VISIBLE_DEVICES=${GPU_ID} python main_DG.py ${data_dir} -d ${dataset} -t ${domain_list[1]} --log logs/clip_resnet50/${dataset}/${domain_list[1]}/description
 
-# CUDA_VISIBLE_DEVICES=${GPU_ID} python main_DG.py ${data_dir} -d ${dataset} -t ${domain_list[2]} --log logs/clip_resnet50/${dataset}/${domain_list[1]}/description
+CUDA_VISIBLE_DEVICES=${GPU_ID} python main_DG.py ${data_dir} -d ${dataset} -t ${domain_list[2]} --log logs/clip_resnet50/${dataset}/${domain_list[1]}/description
 
-# CUDA_VISIBLE_DEVICES=${GPU_ID} python main_DG.py ${data_dir} -d ${dataset} -t ${domain_list[3]} --log logs/clip_resnet50/${dataset}/${domain_list[1]}/description
+CUDA_VISIBLE_DEVICES=${GPU_ID} python main_DG.py ${data_dir} -d ${dataset} -t ${domain_list[3]} --log logs/clip_resnet50/${dataset}/${domain_list[1]}/description
 
 
 

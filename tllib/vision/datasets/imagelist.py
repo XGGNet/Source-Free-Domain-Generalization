@@ -11,6 +11,9 @@ from torch.utils.data.dataset import Dataset, T_co, IterableDataset
 import torchvision.datasets as datasets
 from torchvision.datasets.folder import default_loader
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 
 class ImageList(datasets.VisionDataset):
     """A generic Dataset class for image classification
@@ -52,7 +55,9 @@ class ImageList(datasets.VisionDataset):
             return (tuple): (image, target) where target is index of the target class.
         """
         path, target = self.samples[index]
+
         img = self.loader(path)
+
         if self.transform is not None:
             img = self.transform(img)
         if self.target_transform is not None and target is not None:

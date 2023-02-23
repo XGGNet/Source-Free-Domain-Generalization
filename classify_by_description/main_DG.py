@@ -578,15 +578,17 @@ def main(args):
     print(f'test_dataset size is: {len(dataset)}')
     accuracy_logs = {}
 
-    accuracy_logs["Total Ensemble Top-1 Accuracy: "] = 100*ensemble_accuracy_metric.compute().item()
 
-    accuracy_logs["Total Description-based Top-1 Accuracy: "] = 100*lang_accuracy_metric.compute().item()
     # accuracy_logs["Total Description-based Top-5 Accuracy: "] = 100*lang_accuracy_metric_top5.compute().item()
 
 #     accuracy_logs["Total CLIP-Label Top-1 Accuracy: "] = 100*clip_label_only_accuracy_metric.compute().item()
 # # 
     accuracy_logs["Total CLIP-Standard Top-1 Accuracy: "] = 100*clip_accuracy_metric.compute().item()
     # accuracy_logs["Total CLIP-Standard Top-5 Accuracy: "] = 100*clip_accuracy_metric_top5.compute().item()
+
+    accuracy_logs["Total Description-based Top-1 Accuracy: "] = 100*lang_accuracy_metric.compute().item()
+
+    accuracy_logs["Total Ensemble Top-1 Accuracy: "] = 100*ensemble_accuracy_metric.compute().item()
 
     # print the dictionary
     for key, value in accuracy_logs.items():
