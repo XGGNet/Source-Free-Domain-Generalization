@@ -45,7 +45,10 @@ def main(args):
     # hyperparameters
 
     # hparams['model_size'] = "ViT-B/32" 
-    hparams['model_size'] = args.arch
+
+    convert_dict = {'RN50': 'RN50', 'VITB16':'ViT-B/16', 'VITB32': 'ViT-B/32'}
+
+    hparams['model_size'] = convert_dict[args.arch]
     
     # "RN50" 
 
@@ -618,7 +621,9 @@ if __name__ == '__main__':
     parser.add_argument('--val-resizing', type=str, default='default')
     # model parameters
 
-    parser.add_argument('-a', '--arch', metavar='ARCH', default='RN50')
+    parser.add_argument('-a', '--arch', metavar='ARCH', default='rn50')
+    # vitb16, vitb32
+
     # parser.add_argument('-a', '--arch', metavar='ARCH', default='vitb16')
     # ['RN50',
     #  'RN101',
