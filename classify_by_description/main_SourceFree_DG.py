@@ -27,6 +27,8 @@ from pdb import set_trace as st
 import sys
 sys.path.append("..") 
 
+from prompts import *
+
 import utils
 from tllib.utils.logger import CompleteLogger
 import warnings
@@ -106,6 +108,7 @@ def main(args):
     # hparams['label_after_text'] = ' which is a type of bird.'
     hparams['seed'] = 1
 
+
     # TODO: fix this... defining global variable to be edited in a function, bad practice
     # unmodify_dict = {}
 
@@ -167,7 +170,12 @@ def main(args):
         classes_to_load = None
 
 
-        hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}'
+        # hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}'
+
+        # hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}_rank'
+
+        hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}_ex_domain'
+
 
         # hparams['descriptor_fname'] = f'PACS/descriptors_pacs_{str.lower(args.targets[0])}'
         
@@ -187,7 +195,18 @@ def main(args):
 
     print("Creating descriptors...")
 
-    gpt_descriptions, unmodify_dict = load_gpt_descriptions(hparams, classes_to_load)
+    # gpt_descriptions, unmodify_dict = load_gpt_descriptions(hparams, classes_to_load)
+
+    gpt_domain_descriptions, unmodify_dict = load_domain_gpt_descriptions(hparams, classes_to_load)
+
+    # st()
+
+    domain_name = {'P':'photo', 'A': 'art', 'C': 'cartoon', 'S':'sketch' }
+    gpt_descriptions, unmodify_dict = load_specific_gpt_descriptions(hparams, classes_to_load,domain=domain_name[args.targets[0]])
+
+    # st()
+
+
     label_to_classname = list(gpt_descriptions.keys())
 
     # st()
@@ -201,6 +220,15 @@ def main(args):
             tokens = clip.tokenize(v).to(hparams['device'])
             description_encodings[k] = F.normalize(model.encode_text(tokens).float())
         return description_encodings
+
+    def compute_domain_description_encodings(model):
+        description_encodings = OrderedDict()
+
+        for k, v in gpt_domain_descriptions.items():
+            tokens = clip.tokenize(v).to(hparams['device'])
+            description_encodings[k] = F.normalize(model.encode_text(tokens).float())
+        return description_encodings
+
 
     def compute_label_encodings(model):
 
@@ -268,10 +296,71 @@ def main(args):
         # label_encodings > [7, 1024]
         return prompts, label_encodings
 
+    def compute_domain_label_sentence_encodings(model):
+
+
+        # prompts = ["a {} photo of a "+ wordify(l)  for l in label_to_classname]
+
+        prompts, class_num, domain_num = get_prompts(args.data, args.bank_type)
+
+        # flag=0
+
+        # st()
+
+        # label_encodings = F.normalize(
+        #     model.encode_text( clip.tokenize(prompts).to(hparams['device']) ) #7,1024
+        #     )
+
+        # !!!
+        # 同时编码多个token 和 一个token的结果是不一样的..
+
+        with torch.no_grad():
+            text_inputs = torch.cat( [clip.tokenize(prompt) for prompt in prompts]).to(hparams['device'])
+            text_features = model.encode_text(text_inputs).float()
+            label_encodings = F.normalize(text_features)
+
+
+        # with torch.no_grad():
+        #     for prompt in prompts:
+        #         text = clip.tokenize(prompt).to(device)
+        #         text_features = model.encode_text(text).float()
+
+        #         text_features = text_features / text_features.norm(dim=1, keepdim=True)
+
+        #         if flag==0:
+        #             # text features have to be placed on cpu beacuse of the limitation of gpu memorys.
+        #             text_features_all = text_features.to('cpu')
+        #             flag = 1
+        #         else:
+        #             text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
+
+        # st()
+        # label_encodings > [7, 1024]
+        return prompts, label_encodings, class_num, domain_num 
+
     def aggregate_similarity(similarity_matrix_chunk, aggregation_method='mean'):
+        # st()
+        # [640,7]
         if aggregation_method == 'max': return similarity_matrix_chunk.max(dim=1)[0]
         elif aggregation_method == 'sum': return similarity_matrix_chunk.sum(dim=1)
         elif aggregation_method == 'mean': return similarity_matrix_chunk.mean(dim=1)
+        elif aggregation_method == 'rank':
+            num_fac = similarity_matrix_chunk.shape[1]
+            max_fac = 1.0
+            min_fac = 0.1
+           
+            factor =  [max_fac -  (max_fac-min_fac)*i/(num_fac-1) for i in range(num_fac)]
+
+            # st()
+            
+            def multiple_similarity_matrix_chunk_and_factor(similarity_matrix_chunk, factor):
+                similarity_matrix_chunk = similarity_matrix_chunk * torch.tensor(factor).to(hparams['device'])
+                return similarity_matrix_chunk
+
+            result = multiple_similarity_matrix_chunk_and_factor(similarity_matrix_chunk, factor)
+            # st()
+            return result.mean(dim=1)
+        
         else: raise ValueError("Unknown aggregate_similarity")
 
     def show_from_indices(indices, images, labels=None, predictions=None, predictions2 = None, n=None, image_description_similarity=None, image_labels_similarity=None):
@@ -438,8 +527,6 @@ def main(args):
         show_from_indices(torch.arange(images.shape[0]), images, labels, descr_predictions, clip_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_similarity)
 
 
-
-
     seed_everything(hparams['seed'])
 
     bs = hparams['batch_size']
@@ -476,12 +563,21 @@ def main(args):
     # 得到 description的 text feature
     description_encodings = compute_description_encodings(model)
 
+    domain_description_encodings = compute_domain_description_encodings(model)
+
+    # st()
+
     # 得到标准prompt的 text feature
     label_prompt, label_encodings = compute_label_encodings(model)
 
     sen_prompt, label_sentence_encodings = compute_label_sentence_encodings(model)
 
-    # st()
+
+    domain_sen_prompt, domain_label_sentence_encodings, class_num, domain_num = compute_domain_label_sentence_encodings(model)
+
+    domain_label_sentence_encodings = domain_label_sentence_encodings.view(class_num, domain_num, -1)
+    # mean pooling to generate domain unified prompt representations for each class
+    avg_domain_label_sentence_encodings = torch.mean(domain_label_sentence_encodings, dim=1)
 
 
     print("Evaluating...")
@@ -495,16 +591,24 @@ def main(args):
     # clip_accuracy_metric_top5 = torchmetrics.Accuracy(task="multiclass", num_classes=n_classes,top_k=5).to(device)
 
     
-    ensemble_accuracy_metric = torchmetrics.Accuracy().to(device)
+    # ensemble_accuracy_metric = torchmetrics.Accuracy().to(device)
 
-    lang_accuracy_metric = torchmetrics.Accuracy().to(device)
-    # lang_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
+    # lang_accuracy_metric = torchmetrics.Accuracy().to(device)
+    # # lang_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
 
-    clip_accuracy_metric = torchmetrics.Accuracy().to(device)
-    # clip_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
+    # clip_accuracy_metric = torchmetrics.Accuracy().to(device)
+    # # clip_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
 
-    clip_label_only_accuracy_metric = torchmetrics.Accuracy().to(device)
+    # # clip_label_only_accuracy_metric = torchmetrics.Accuracy().to(device)
+    # clip_domain_accuracy_metric = torchmetrics.Accuracy().to(device)
     
+    # acc_metrics = [torchmetrics.Accuracy().to(device)]*5
+
+    acc0 = torchmetrics.Accuracy().to(device)
+    acc1 = torchmetrics.Accuracy().to(device)
+    acc2 = torchmetrics.Accuracy().to(device)
+    acc3 = torchmetrics.Accuracy().to(device)
+    acc4 = torchmetrics.Accuracy().to(device)
 
 
     for batch_number, (images, labels,_) in enumerate(tqdm(dataloader)):
@@ -515,12 +619,9 @@ def main(args):
 
         # st()
 
-   
         image_encodings = model.encode_image(images).float()
 
-
         image_encodings = F.normalize(image_encodings) # 和 image_features /= image_features.norm(dim=-1, keepdim=True) 等价
-
 
 
         '''
@@ -532,42 +633,81 @@ def main(args):
         # clip_acc = clip_label_only_accuracy_metric(image_labels_similarity, labels)
         # clip_acc_top5 = clip_accuracy_metric_top5(image_labels_similarity, labels)
 
-        image_labels_sen_similarity = 100*image_encodings @ label_sentence_encodings.T
-        clip_sen_predictions = image_labels_sen_similarity.argmax(dim=1)
-        clip_sen_acc = clip_accuracy_metric(image_labels_sen_similarity, labels)
-        
+        # image_labels_sen_similarity = 100*image_encodings @ label_sentence_encodings.T
+
+        # clip_sen_predictions = image_labels_sen_similarity.argmax(dim=1)
+        # _, clip_sen_predictions_top5 = image_labels_sen_similarity.topk(5,dim=1)
+
+        _ = acc0(100*image_encodings @ label_sentence_encodings.T, labels)
+
+        _ = acc1(100*image_encodings @ avg_domain_label_sentence_encodings.T, labels) #[640,7]
 
 
-        # st()
         
+        sim = []
+        for ind in range( domain_label_sentence_encodings.shape[1] ):
+            sim.append( 100*image_encodings @ domain_label_sentence_encodings[:,ind].T)
+
+    
+        sim = torch.stack(sim, dim=0).mean(dim=0)   #[11,640,7] > [640,7]
+        _ = acc2(sim, labels)
+            
         image_description_similarity = [None]*n_classes
         image_description_similarity_cumulative = [None]*n_classes
-        
+
         for i, (k, v) in enumerate(description_encodings.items()): # You can also vectorize this; it wasn't much faster for me
         ## k - class, v - description
 
             dot_product_matrix = 100*image_encodings @ v.T # 这是一个矩阵
             
-            image_description_similarity[i] = dot_product_matrix
+            image_description_similarity[i] = dot_product_matrix # [640,11]
             image_description_similarity_cumulative[i] = aggregate_similarity(image_description_similarity[i]) #这里是取均值
+
+        rank_image_description_similarity = [None]*n_classes
+        rank_image_description_similarity_cumulative = [None]*n_classes
+
+        
+        for i, (k, v) in enumerate(domain_description_encodings.items()): # You can also vectorize this; it wasn't much faster for me
+        ## k - class, v - description
+
+            dot_product_matrix = 100*image_encodings @ v.T # 这是一个矩阵
             
-            
+            rank_image_description_similarity[i] = dot_product_matrix # [640,76]
+            # rank_image_description_similarity_cumulative[i] = aggregate_similarity(rank_image_description_similarity[i], aggregation_method='rank') #这里是取均值
+            rank_image_description_similarity_cumulative[i] = aggregate_similarity(rank_image_description_similarity[i]) #这里是取均值
+
+        # st()
+
         # create tensor of similarity means
         cumulative_tensor = torch.stack(image_description_similarity_cumulative,dim=1)
 
-        descr_predictions = cumulative_tensor.argmax(dim=1)
+        rank_cumulative_tensor = torch.stack(rank_image_description_similarity_cumulative,dim=1)
+
+        # clip_des_predictions = cumulative_tensor.argmax(dim=1)
+        # clip_des_predictions = cumulative_tensor.argmax(dim=1)
+        # rank_clip_des_predictions = rank_cumulative_tensor.argmax(dim=1)
+
+        # _, clip_des_predictions_top5 = cumulative_tensor.topk(5,dim=1)
         
-        lang_acc = lang_accuracy_metric(cumulative_tensor.softmax(dim=-1), labels)
+        _ = acc3(cumulative_tensor.softmax(dim=-1), labels)
         # lang_acc_top5 = lang_accuracy_metric_top5(cumulative_tensor.softmax(dim=-1), labels)
 
-        ensemble_similarity = (image_labels_sen_similarity + cumulative_tensor) / 2
+        # ensemble_similarity = (image_labels_sen_similarity + cumulative_tensor) / 2
 
-        ensem_acc = ensemble_accuracy_metric(ensemble_similarity.argmax(dim=1), labels)
+        # ensem_acc = ensemble_accuracy_metric(ensemble_similarity.argmax(dim=1), labels)
+        _ = acc4(rank_cumulative_tensor.argmax(dim=1), labels)
 
         if batch_number==0:
             print("\n")
 
-        # show_from_indices(torch.where(descr_predictions != clip_sen_predictions)[0], images, labels, descr_predictions, clip_sen_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_sen_similarity)
+        # show_from_indices(torch.where(clip_sen_predictions!=labels)[0], images, labels, clip_des_predictions, clip_sen_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_sen_similarity)
+
+        # clip_sen_predictions_top5
+        # clip_des_predictions_top5
+
+        # st()
+
+        # show_from_indices(torch.where(clip_des_predictions != clip_sen_predictions)[0], images, labels, clip_des_predictions, clip_sen_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_sen_similarity)
 
         # show_from_indices(torch.where(clip_sen_predictions != labels)[0], images, labels, descr_predictions, clip_sen_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_sen_similarity)
 
@@ -586,18 +726,33 @@ def main(args):
 
 #     accuracy_logs["Total CLIP-Label Top-1 Accuracy: "] = 100*clip_label_only_accuracy_metric.compute().item()
 # # 
-    accuracy_logs["Total CLIP-Standard Top-1 Accuracy: "] = 100*clip_accuracy_metric.compute().item()
-    # accuracy_logs["Total CLIP-Standard Top-5 Accuracy: "] = 100*clip_accuracy_metric_top5.compute().item()
+    # accuracy_logs["Total CLIP-Standard Top-1 Accuracy: "] = 100*clip_accuracy_metric.compute().item()
+    # # accuracy_logs["Total CLIP-Standard Top-5 Accuracy: "] = 100*clip_accuracy_metric_top5.compute().item()
 
-    accuracy_logs["Total Description-based Top-1 Accuracy: "] = 100*lang_accuracy_metric.compute().item()
+    # accuracy_logs["Total Description-based Top-1 Accuracy: "] = 100*lang_accuracy_metric.compute().item()
 
-    accuracy_logs["Total Ensemble Top-1 Accuracy: "] = 100*ensemble_accuracy_metric.compute().item()
+    # accuracy_logs["Total Rank Description-based Top-1 Accuracy: "] = 100*ensemble_accuracy_metric.compute().item()
+
+    log_names = ['CLIP', 'CLIP-domain-avg-prompt', 'CLIP-domain-avg', 'Description', 'Description-domain-cat']
+    log_accs = [acc0,acc1,acc2,acc3,acc4]
+
+    for ind, name in enumerate( log_names ):
+        # st()
+        accuracy_logs[f"Total {name} Top-1 Accuracy: "] = 100*log_accs[ind].compute().item()
+
+
+    # accuracy_logs["Total CLIP-Standard Top-1 Accuracy: "] = 100*clip_accuracy_metric.compute().item()
+
+    # # accuracy_logs["Total CLIP-Standard Top-5 Accuracy: "] = 100*clip_accuracy_metric_top5.compute().item()
+    # accuracy_logs["Total Description-based Top-1 Accuracy: "] = 100*lang_accuracy_metric.compute().item()
+
+    # accuracy_logs["Total Rank Description-based Top-1 Accuracy: "] = 100*ensemble_accuracy_metric.compute().item()
+
 
     # print the dictionary
     for key, value in accuracy_logs.items():
         # print(key, f'{value:.3f}')
           print(key, value, f'** {value:.3f}')
-
 
 
 
@@ -665,6 +820,10 @@ if __name__ == '__main__':
                              "When phase is 'analysis', only analysis the model.")
     parser.add_argument('--intra', default=0.5, type=float, help='weight of loss intra')
     parser.add_argument('--inter', default=0.05, type=float, help='weight of loss intra')
+
+    parser.add_argument('--rank', action='store_true')
+
+
     args = parser.parse_args()
 
     main(args)

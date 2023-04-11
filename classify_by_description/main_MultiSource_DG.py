@@ -123,6 +123,8 @@ def main(args):
     # PyTorch datasets
     tfms = _transform(hparams['image_size'])
 
+ 
+
 
 
     if hparams['dataset'] == 'imagenet':
@@ -160,9 +162,16 @@ def main(args):
 
         model, preprocess = clip.load(hparams['model_size'], device=hparams['device'], jit=False)
 
+
+        train_dataset, _ = utils.get_dataset(dataset_name=args.data, root=args.root, task_list=args.sources, split='train',download=True, transform=preprocess, seed=args.seed)
+
+        
+        val_dataset,_ = utils.get_dataset(dataset_name=args.data, root=args.root, task_list=args.sources, split='val',download=True, transform=preprocess, seed=args.seed)
+        
+
         test_dataset, _ = utils.get_dataset(dataset_name=args.data, root=args.root, task_list=args.targets, split='test',download=True, transform=preprocess, seed=args.seed)
 
-        dataset = test_dataset
+        # dataset = test_dataset
 
         classes_to_load = None
 
@@ -193,6 +202,8 @@ def main(args):
     # st()
 
     n_classes = len(list(gpt_descriptions.keys()))
+
+    
 
     def compute_description_encodings(model):
         description_encodings = OrderedDict()
@@ -451,7 +462,8 @@ def main(args):
     (image [3,224,224], label 185)
     '''
     # st()
-    dataloader = DataLoader(dataset, bs, shuffle=False, num_workers=16, pin_memory=True)
+    train_loader = DataLoader(train_dataset, bs, shuffle=False, num_workers=16, pin_memory=True)
+    test_loader = DataLoader(test_dataset, bs, shuffle=False, num_workers=16, pin_memory=True)
 
     # st()
 
@@ -465,8 +477,6 @@ def main(args):
     for name, parameters in model.named_parameters():
         cnt += parameters.mean()
 
-    # st()
-        
 
     model.eval()
     model.requires_grad_(False)
@@ -497,6 +507,8 @@ def main(args):
     
     ensemble_accuracy_metric = torchmetrics.Accuracy().to(device)
 
+    ensemble_accuracy_metric2 = torchmetrics.Accuracy().to(device)
+
     lang_accuracy_metric = torchmetrics.Accuracy().to(device)
     # lang_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
 
@@ -504,23 +516,152 @@ def main(args):
     # clip_accuracy_metric_top5 = torchmetrics.Accuracy(top_k=5).to(device)
 
     clip_label_only_accuracy_metric = torchmetrics.Accuracy().to(device)
+
+    multi_source_accuracy_metric = torchmetrics.Accuracy().to(device)
     
+    label_to_classname = list(gpt_descriptions.keys())
 
+    n_classes = len(list(gpt_descriptions.keys()))
 
-    for batch_number, (images, labels,_) in enumerate(tqdm(dataloader)):
+    # { gt_cls:{ cls1:{des1:s1, des2:s2} cls2:{} } }
+    des_scores = {}
+    cnt_cls = {}
+    for _k, _v in gpt_descriptions.items():
+        _des_scores = {}
+        cnt_cls[_k] = 0
+        for k, v in gpt_descriptions.items():
+            temp_dict = {}
+            for des in v:
+                temp_dict[des] = 0.0
+            _des_scores[k] = temp_dict
+        des_scores[_k] = _des_scores
+    
+    cls_des_index = {}
+    _cnt=0
+    for k, v in gpt_descriptions.items():
+        cls_des_index[k] = [_cnt, _cnt+len(v)]
+        _cnt = _cnt + len(v)
+
+    # st()
+
+    # Training stage: collect statics for description scores
+    for batch_number, (images, labels, domain_labels) in enumerate(tqdm(train_loader)):
         # images, labels = batch
         
         images = images.to(device)
         labels = labels.to(device)
 
-        # st()
-
-   
         image_encodings = model.encode_image(images).float()
 
 
         image_encodings = F.normalize(image_encodings) # 和 image_features /= image_features.norm(dim=-1, keepdim=True) 等价
 
+
+        '''
+        计算CLIP_only_label的指标结果
+        '''
+        
+        # image_labels_similarity = 100*image_encodings @ label_encodings.T
+        # clip_predictions = image_labels_similarity.argmax(dim=1)
+        # clip_acc = clip_label_only_accuracy_metric(image_labels_similarity, labels)
+        # clip_acc_top5 = clip_accuracy_metric_top5(image_labels_similarity, labels)
+
+        # image_labels_sen_similarity = 100*image_encodings @ label_sentence_encodings.T
+        # clip_sen_predictions = image_labels_sen_similarity.argmax(dim=1)
+        # clip_sen_acc = clip_accuracy_metric(image_labels_sen_similarity, labels)
+        
+        
+        image_description_similarity = [None]*n_classes
+        image_description_similarity_cumulative = [None]*n_classes
+
+        # batch_scores = {}
+        
+        for i, (k, v) in enumerate(description_encodings.items()): # You can also vectorize this; it wasn't much faster for me
+        ## i,k - class, v - all description for cls k
+
+
+            dot_product_matrix = 100*image_encodings @ v.T #  (bs,n_dim)*(n_des, n_dim).T > (bs, n_des)
+            
+            image_description_similarity[i] = dot_product_matrix # bs, n_des
+
+            for ind1 in range( len(images) ):
+                cls_name = label_to_classname[ labels[ind1] ]
+                if i==0:
+                    cnt_cls[cls_name] += 1
+                for ind2, des in enumerate( gpt_descriptions[k] ):
+                    des_scores[ cls_name ][k][des] += dot_product_matrix[ind1][ind2]
+            
+
+            image_description_similarity_cumulative[i] = aggregate_similarity(image_description_similarity[i]) #这里是取均值  (bs,) 表示bs sample在 第i个类别k上的 预测分数
+        
+
+        # create tensor of similarity means   长度为cls
+        # cumulative_tensor = torch.stack(image_description_similarity_cumulative,dim=1) #(bs, n_cls)
+
+        # descr_predictions = cumulative_tensor.argmax(dim=1)
+        
+        # lang_acc = lang_accuracy_metric(cumulative_tensor.softmax(dim=-1), labels)
+        # # lang_acc_top5 = lang_accuracy_metric_top5(cumulative_tensor.softmax(dim=-1), labels)
+
+        # ensemble_similarity = (image_labels_sen_similarity + cumulative_tensor) / 2
+
+        # ensem_acc = ensemble_accuracy_metric(ensemble_similarity.argmax(dim=1), labels)
+
+        # if batch_number==0:
+        #     print("\n")
+
+        # show_from_indices(torch.where(descr_predictions != clip_sen_predictions)[0], images, labels, descr_predictions, clip_sen_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_sen_similarity)
+
+        # show_from_indices(torch.where(clip_sen_predictions != labels)[0], images, labels, descr_predictions, clip_sen_predictions, image_description_similarity=image_description_similarity, image_labels_similarity=image_labels_sen_similarity)
+
+
+        # des_scores = {}
+        # cnt_cls = {}
+
+
+    for gt_cls_name in label_to_classname:
+        for pd_cls_name in label_to_classname:
+            for des_name in gpt_descriptions[pd_cls_name]:
+                des_scores[gt_cls_name][pd_cls_name][des_name] = des_scores[gt_cls_name][pd_cls_name][des_name] / cnt_cls[gt_cls_name]
+
+    # st() 
+
+   
+    cls_src_des_scores = {}
+    cls_src_des_sm_scores = {}
+    cls_src_des_nsm_scores = {}
+    image_description_similarity_sm = {}
+
+    # _image_description_similarity_sm = []
+    # image_description_similarity_sm = image_description_similarity.copy()
+
+
+    for gt_cls in range(n_classes):
+        temp_list = []
+        for pd_cls in range(n_classes):
+            temp_list.append( torch.stack( list(des_scores[ label_to_classname[gt_cls] ][ label_to_classname[pd_cls] ].values()) )) # n_des
+    
+        cls_src_des_scores[gt_cls] = temp_list
+        cls_src_des_sm_scores[gt_cls] = torch.cat(temp_list).softmax(dim=-1) # 总分数
+        cls_src_des_nsm_scores[gt_cls] = torch.cat(temp_list)# 总分数
+    
+    '''
+    TEST
+    '''
+
+    for batch_number, (images, labels, domain_labels) in enumerate(tqdm(test_loader)):
+    # images, labels = batch
+
+        multi_source_cls_sim = n_classes*[None]
+        multi_source_all_sim = n_classes*[None]
+    
+        images = images.to(device)
+        labels = labels.to(device)
+
+        image_encodings = model.encode_image(images).float()
+
+
+        image_encodings = F.normalize(image_encodings) # 和 image_features /= image_features.norm(dim=-1, keepdim=True) 等价
 
 
         '''
@@ -536,24 +677,88 @@ def main(args):
         clip_sen_predictions = image_labels_sen_similarity.argmax(dim=1)
         clip_sen_acc = clip_accuracy_metric(image_labels_sen_similarity, labels)
         
-
-
-        # st()
         
         image_description_similarity = [None]*n_classes
         image_description_similarity_cumulative = [None]*n_classes
-        
-        for i, (k, v) in enumerate(description_encodings.items()): # You can also vectorize this; it wasn't much faster for me
-        ## k - class, v - description
 
-            dot_product_matrix = 100*image_encodings @ v.T # 这是一个矩阵
+        # st()
+
+        # batch_scores = {}
+
+        '''
+        For eacgh Query sample x_i, we obtain the CLIP sim scores over all the descriptions among all the classes, which is in n_cls*n_des then:
+        1. 根据query的在每个GT类别上的description分布, 计算和每个类别的des分布的 相似分数
+        2. 把GT类别上的其他预测类别的分布也考虑上
+        '''
+
+        # Source-Free
+
+        for i, (k, v) in enumerate(description_encodings.items()): # You can also vectorize this; it wasn't much faster for me
+        ## i,k - class, v - all description for cls k
+
+            dot_product_matrix = 100*image_encodings @ v.T #  (bs,n_dim)*(n_des, n_dim).T > (bs, n_des)
             
-            image_description_similarity[i] = dot_product_matrix
-            image_description_similarity_cumulative[i] = aggregate_similarity(image_description_similarity[i]) #这里是取均值
+            image_description_similarity[i] = dot_product_matrix # bs, n_des
+
+            # for ind1 in range( len(images) ):
+            #     cls_name = label_to_classname[ labels[ind1] ]
+            #     cnt_cls[cls_name] += 1
+            #     for ind2, des in enumerate( gpt_descriptions[k] ):
+            #         des_scores[ cls_name ][k][des] += dot_product_matrix[ind1][ind2]
+
+            image_description_similarity_cumulative[i] = aggregate_similarity(image_description_similarity[i]) #这里是取均值  (bs,) 表示bs sample在 第i个类别k上的 预测分数
+        
+        # Source-Considered
+        # image_description_similarity  n_cls*(bs, n_des)
+ 
+
+        # st() #cls_src_des_sm_scores 7*[n_des]
+
+        pred_scores = torch.zeros( ( len(images), n_classes) ).to(device) 
+        pred_all_scores = torch.zeros( ( len(images), n_classes) ).to(device) 
+
+        for ind in range(len(images)):
+            temp_list = []
+            for cls in range(n_classes):
+                temp_list.append( image_description_similarity[cls][ind] ) #n_des
+
+            pred_score_sm = torch.cat(temp_list).softmax(dim=-1) # 
+            pred_score_nsm = torch.cat(temp_list) # 
+
+            for cls_id, (cls_name, cls_inds) in enumerate( cls_des_index.items() ):
+                # st()
+                # pred_scores[ind][cls_id] = -F.kl_div( pred_score_sm[ cls_inds[0] : cls_inds[1] ],  cls_src_des_sm_scores[cls_id][ cls_inds[0] : cls_inds[1] ], reduction='sum' )
+                pred_scores[ind][cls_id] = -F.mse_loss( pred_score_sm[ cls_inds[0] : cls_inds[1] ], cls_src_des_sm_scores[cls_id][ cls_inds[0] : cls_inds[1] ], reduction="none" ).mean()
+
+                pred_all_scores[ind][cls_id] = -F.mse_loss( pred_score_nsm, cls_src_des_sm_scores[cls_id], reduction="none" ).mean()
+
+            # for cls in range(n_classes):
+            #     image_description_similarity_sm[cls][ind] = temp_tensor
+
+        # st()
+        
+            # cosine similarity
+            # multi_source_cls_sim[cls] = F.cosine_similarity(image_description_similarity[cls], cls_src_des_scores, dim=-1) #bs
+
+        #l2_loss
+        for cls in range(n_classes):
+            temp = F.mse_loss( image_description_similarity[cls], cls_src_des_scores[cls][cls].unsqueeze(0).repeat(len(images),1), reduction="none" ).mean(-1)
+            multi_source_cls_sim[cls] = -temp #bs
             
-            
-        # create tensor of similarity means
-        cumulative_tensor = torch.stack(image_description_similarity_cumulative,dim=1)
+            # st()
+
+        # image_description_similarity_all = torch.stack(image_description_similarity,dim=1) #(bs, n_cls, n_des)
+        # for cls in range(n_classes):
+        #     ## all_sim
+        #     st()
+        #     _temp = F.mse_loss( image_description_similarity_all, torch.stack(cls_src_des_scores[cls],dim=1).unsqueeze(0).repeat(len(images),1), reduction="none" ).mean(-1)
+        #     multi_source_all_sim[cls] = -temp #bs
+
+
+        # st()
+
+        # create tensor of similarity means   长度为cls
+        cumulative_tensor = torch.stack(image_description_similarity_cumulative,dim=1) #(bs, n_cls)
 
         descr_predictions = cumulative_tensor.argmax(dim=1)
         
@@ -564,6 +769,32 @@ def main(args):
 
         ensem_acc = ensemble_accuracy_metric(ensemble_similarity.argmax(dim=1), labels)
 
+
+        '''
+        每个类别去算 description score的 MSE
+        '''
+
+        # multi_source_cls_sim = torch.stack(multi_source_cls_sim, dim=1) # bs,n_cls
+        # multi_source_acc = multi_source_accuracy_metric(multi_source_cls_sim.argmax(dim=-1), labels)
+
+        # st()
+
+        multi_source_acc = multi_source_accuracy_metric(pred_all_scores.argmax(dim=-1), labels)
+
+        # st()
+
+        # ensemble_similarity2 = ( pred_all_scores.softmax(-1) + cumulative_tensor ) / 2
+
+        # ensem_acc2 = ensemble_accuracy_metric2(ensemble_similarity2.argmax(dim=1), labels)
+
+
+        '''
+        所有类别的所有description加在一起算softmax
+        '''
+        # multi_source_acc = multi_source_accuracy_metric(pred_scores.argmax(dim=-1), labels)
+
+        
+
         if batch_number==0:
             print("\n")
 
@@ -573,12 +804,12 @@ def main(args):
 
         # st()
         
-        
+    
 
     print("\n")
 
     print(f'target domain is:{args.targets}')
-    print(f'test_dataset size is: {len(dataset)}')
+    print(f'test_dataset size is: {len(test_dataset)}')
     accuracy_logs = {}
 
 
@@ -593,10 +824,14 @@ def main(args):
 
     accuracy_logs["Total Ensemble Top-1 Accuracy: "] = 100*ensemble_accuracy_metric.compute().item()
 
+    accuracy_logs["Total Multi-Source-1 Top-1 Accuracy: "] = 100*multi_source_accuracy_metric.compute().item()
+
+    # accuracy_logs["Total Ensemble Top-1 Accuracy2: "] = 100*ensemble_accuracy_metric2.compute().item()
+
     # print the dictionary
     for key, value in accuracy_logs.items():
         # print(key, f'{value:.3f}')
-          print(key, value, f'** {value:.3f}')
+        print(key, value, f'** {value:.3f}')
 
 
 
@@ -665,6 +900,11 @@ if __name__ == '__main__':
                              "When phase is 'analysis', only analysis the model.")
     parser.add_argument('--intra', default=0.5, type=float, help='weight of loss intra')
     parser.add_argument('--inter', default=0.05, type=float, help='weight of loss intra')
+
+    # parser.add_argument('--rank', action='store_true')
+
+
+
     args = parser.parse_args()
 
     main(args)

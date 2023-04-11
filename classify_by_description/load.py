@@ -27,8 +27,8 @@ import utils
 hparams = {}
 # hyperparameters
 
-# hparams['model_size'] = "ViT-B/32" 
-hparams['model_size'] = "RN50" 
+hparams['model_size'] = "ViT-B/32" 
+# hparams['model_size'] = "RN50" 
 
 # Options:
 # ['RN50',

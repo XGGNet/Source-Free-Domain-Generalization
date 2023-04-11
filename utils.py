@@ -21,6 +21,8 @@ from tllib.vision.transforms import ResizeImage
 from tllib.utils.metric import accuracy
 from tllib.utils.meter import AverageMeter, ProgressMeter
 
+from pdb import set_trace as st
+
 
 def get_model_names():
     return sorted(name for name in models.__dict__ if
@@ -92,6 +94,8 @@ def get_dataset(dataset_name, root, task_list, split='train', download=True, tra
     split_ratio = 0.8
     num_classes = 0
 
+    # st()
+
     # under domain generalization setting, we use all samples in target domain as test set
     for task in task_list:
         if dataset_name == 'PACS':
@@ -127,6 +131,9 @@ def get_dataset(dataset_name, root, task_list, split='train', download=True, tra
         'val': val_dataset,
         'test': test_dataset
     }
+
+    # st()
+
     return dataset_dict[split], num_classes
 
 
