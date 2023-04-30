@@ -23,6 +23,9 @@ sys.path.append("..")
 
 import utils
 
+from main_SourceFree_DG import *
+from main_SourceFree_DG import preprocess
+
 
 hparams = {}
 # hyperparameters
@@ -87,7 +90,7 @@ IMAGENETV2_DIR = '/proj/vondrick/datasets/ImageNetV2/' # REPLACE THIS WITH YOUR 
 # CUB_DIR = '/proj/vondrick/datasets/Birds-200-2011/' # REPLACE THIS WITH YOUR OWN PATH
 CUB_DIR = '/home/lichenxin/data/CUB_200_2011/' # REPLACE THIS WITH YOUR OWN PATH
 
-# PACS_DIR = '/home/lichenxin/code/Source-Free-Domain-Generalization/data/PACS/'
+PACS_DIR = '/mnt/Xsky/zyl/dataset/Domainbed/PACS/'
 
 
 # PyTorch datasets

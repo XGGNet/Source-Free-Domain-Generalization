@@ -204,7 +204,7 @@ def obtain_domain_bank_descriptors_and_save(filename, domain_bank_list, class_li
 
     for i in range(len(class_list)):
         split_list = descriptors_list[i*len(domain_bank_list):(i+1)*len(domain_bank_list)]
-        merged_descriptors_list.append( list(set([item for sublist in split_list for item in sublist])) )
+        merged_descriptors_list.append( list(set([item for sublist in split_list for item in sublist])) ) # 存在过的只记录一次
         
     # st()
 
@@ -273,8 +273,6 @@ if __name__ == '__main__':
     obtain_descriptors_and_save('descriptors/descriptors_officehome',categories_list['OfficeHome'] )
 
 
-
-
     # obtain_ds_descriptors_and_save('','descriptors/PACS/descriptors_pacs_p', ["dog", "elephant", "giraffe", "guitar", "horse", "house", "person"])
 
     # obtain_ds_descriptors_and_save('art-painting','descriptors/PACS/descriptors_pacs_a', ["dog", "elephant", "giraffe", "guitar", "horse", "house", "person"])
@@ -285,11 +283,15 @@ if __name__ == '__main__':
 
     # obtain_di_descriptors_and_save('descriptors/descriptors_di_pacs', ["dog", "elephant", "giraffe", "guitar", "horse", "house", "person"])
 
+
+
     # obtain_domain_bank_descriptors_and_save('descriptors/PACS/descriptors_pacs_domain_bank_pacs',domain_banks_list['PACS'], categories_list['PACS'])
 
     # obtain_domain_bank_descriptors_and_save('descriptors/PACS/descriptors_pacs_domain_bank_combined',domain_banks_list['Combined'], categories_list['PACS'])
 
     # obtain_domain_bank_descriptors_and_save('descriptors/PACS/descriptors_pacs_domain_bank_expanded',domain_banks_list['Expanded'], categories_list['PACS'])
+
+
 
     # obtain_no_merged_domain_bank_descriptors_and_save('descriptors/PACS/descriptors_pacs_domain_bank_pacs_no_merged',domain_banks_list['PACS'], categories_list['PACS'])
 

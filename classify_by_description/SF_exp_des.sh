@@ -31,10 +31,10 @@ domain_list=('P' 'A' 'C' 'S')
 # dataset='Terra'
 # domain_list=('100' '38' '43' '46')
 
-arch='VITB16' #    #  'ViTB16', 'ViTB32',
+arch='VITB32' #    #  'ViTB16', 'ViTB32',
 
-GPU_ID='0'
-data_dir='/home/lichenxin/data/Domainbed/'${dataset}
+GPU_ID='4'
+data_dir='/mnt/Xsky/zyl/dataset//Domainbed/'${dataset}
 
 CUDA_VISIBLE_DEVICES=${GPU_ID} python main_SourceFree_DG.py ${data_dir} -d ${dataset} -t ${domain_list[0]} -a ${arch} --log logs/SourceFree_${arch}/${dataset}/${domain_list[0]}/description
 

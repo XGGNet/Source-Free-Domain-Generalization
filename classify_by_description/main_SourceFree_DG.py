@@ -120,7 +120,7 @@ def main(args):
     # CUB_DIR = '/proj/vondrick/datasets/Birds-200-2011/' # REPLACE THIS WITH YOUR OWN PATH
     CUB_DIR = '/home/lichenxin/data/CUB_200_2011/' # REPLACE THIS WITH YOUR OWN PATH
 
-    PACS_DIR = '/home/lichenxin/code/Source-Free-Domain-Generalization/data/PACS/'
+    # PACS_DIR = '/mnt/Xsky/zyl/dataset/Domainbed/PACS/'
 
 
     # PyTorch datasets
@@ -175,7 +175,6 @@ def main(args):
         # hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}_rank'
 
         hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}_ex_domain'
-
 
         # hparams['descriptor_fname'] = f'PACS/descriptors_pacs_{str.lower(args.targets[0])}'
         
@@ -563,17 +562,16 @@ def main(args):
     # 得到 description的 text feature
     description_encodings = compute_description_encodings(model)
 
-    domain_description_encodings = compute_domain_description_encodings(model)
+    domain_description_encodings = compute_domain_description_encodings(model) # domain_description_encodings表示每个domain的description的text feature
 
-    # st()
 
     # 得到标准prompt的 text feature
     label_prompt, label_encodings = compute_label_encodings(model)
 
     sen_prompt, label_sentence_encodings = compute_label_sentence_encodings(model)
 
-
     domain_sen_prompt, domain_label_sentence_encodings, class_num, domain_num = compute_domain_label_sentence_encodings(model)
+    
 
     domain_label_sentence_encodings = domain_label_sentence_encodings.view(class_num, domain_num, -1)
     # mean pooling to generate domain unified prompt representations for each class
@@ -641,7 +639,7 @@ def main(args):
         _ = acc0(100*image_encodings @ label_sentence_encodings.T, labels)
 
         _ = acc1(100*image_encodings @ avg_domain_label_sentence_encodings.T, labels) #[640,7]
-
+        # TO CHECK
 
         
         sim = []
@@ -689,13 +687,13 @@ def main(args):
 
         # _, clip_des_predictions_top5 = cumulative_tensor.topk(5,dim=1)
         
-        _ = acc3(cumulative_tensor.softmax(dim=-1), labels)
+        _ = acc3(cumulative_tensor, labels)
         # lang_acc_top5 = lang_accuracy_metric_top5(cumulative_tensor.softmax(dim=-1), labels)
 
         # ensemble_similarity = (image_labels_sen_similarity + cumulative_tensor) / 2
 
         # ensem_acc = ensemble_accuracy_metric(ensemble_similarity.argmax(dim=1), labels)
-        _ = acc4(rank_cumulative_tensor.argmax(dim=1), labels)
+        _ = acc4(rank_cumulative_tensor, labels)
 
         if batch_number==0:
             print("\n")
