@@ -3,6 +3,10 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
+import builtins
+
+args = builtins.args
+
 from descriptor_strings import *  # label_to_classname, wordify, modify_descriptor,
 import pathlib
 
@@ -21,17 +25,31 @@ from pdb import set_trace as st
 import sys
 sys.path.append("..") 
 
+from prompts import *
+
 import utils
 
-from main_SourceFree_DG import *
-from main_SourceFree_DG import preprocess
+# from main_SourceFree_DG import *
+# from main_SourceFree_DG import global_args
+
+# from main_SourceFree_DG import preprocess
+
+# def set_global_args(args):
+#     global global_args
+#     global_args = args
+
 
 
 hparams = {}
 # hyperparameters
 
-hparams['model_size'] = "ViT-B/32" 
-# hparams['model_size'] = "RN50" 
+# hparams['model_size'] = "ViT-B/32" 
+
+convert_dict = {'RN50': 'RN50', 'VITB16':'ViT-B/16', 'VITB32': 'ViT-B/32'}
+
+hparams['model_size'] = convert_dict[args.arch]
+
+# "RN50" 
 
 # Options:
 # ['RN50',
@@ -43,10 +61,13 @@ hparams['model_size'] = "ViT-B/32"
 #  'ViT-B/16',
 #  'ViT-L/14',
 #  'ViT-L/14@336px']
-hparams['dataset'] = 'cub'
+
+# hparams['dataset'] = 'cub'
+hparams['dataset'] = 'pacs'
 
 hparams['batch_size'] = 64*10
 hparams['device'] = "cuda" if torch.cuda.is_available() else "cpu"
+
 hparams['category_name_inclusion'] = 'prepend' #'append' 'prepend'
 
 hparams['apply_descriptor_modification'] = True
@@ -67,7 +88,10 @@ elif hparams['model_size'] == 'RN50x64' and hparams['image_size'] != 448:
     hparams['image_size'] = 448
 
 hparams['before_text'] = ""
+
 hparams['label_before_text'] = ""
+# hparams['label_before_text'] = "a photo of a "
+
 hparams['between_text'] = ', '
 # hparams['between_text'] = ' '
 # hparams['between_text'] = ''
@@ -79,23 +103,18 @@ hparams['label_after_text'] = ''
 # hparams['label_after_text'] = ' which is a type of bird.'
 hparams['seed'] = 1
 
-# TODO: fix this... defining global variable to be edited in a function, bad practice
-# unmodify_dict = {}
 
-# classes_to_load = openai_imagenet_classes
-hparams['descriptor_fname'] = None
 
 IMAGENET_DIR = '/proj/vondrick3/datasets/ImageNet/' # REPLACE THIS WITH YOUR OWN PATH
 IMAGENETV2_DIR = '/proj/vondrick/datasets/ImageNetV2/' # REPLACE THIS WITH YOUR OWN PATH
 # CUB_DIR = '/proj/vondrick/datasets/Birds-200-2011/' # REPLACE THIS WITH YOUR OWN PATH
 CUB_DIR = '/home/lichenxin/data/CUB_200_2011/' # REPLACE THIS WITH YOUR OWN PATH
 
-PACS_DIR = '/mnt/Xsky/zyl/dataset/Domainbed/PACS/'
-
-
 # PyTorch datasets
 tfms = _transform(hparams['image_size'])
 
+
+tfms = _transform(hparams['image_size'])
 
 
 if hparams['dataset'] == 'imagenet':
@@ -127,18 +146,37 @@ elif hparams['dataset'] == 'cub':
     
     classes_to_load = None #dataset.classes
     hparams['descriptor_fname'] = 'descriptors_cub'
-
 elif hparams['dataset'] == 'pacs':
-    hparams['data_dir'] = pathlib.Path(PACS_DIR)
+    # hparams['data_dir'] = pathlib.Path(PACS_DIR)
 
-    test_dataset, _ = utils.get_dataset(dataset_name='PACS', root='home', task_list=args.targets, split='test', download=True, transform=preprocess, seed=args.seed)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
+    model, preprocess = clip.load(hparams['model_size'], device=hparams['device'], jit=False)
+
+    test_dataset, _ = utils.get_dataset(dataset_name=args.data, root=args.root, task_list=args.targets, split='test',download=True, transform=preprocess, seed=args.seed)
+
+    dataset = test_dataset
+
+    classes_to_load = None
+
+
+    # hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}'
+
+    # hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}_rank'
+
+    hparams['descriptor_fname'] = f'{args.data}/descriptors_{str.lower(args.data)}_ex_domain'
+
+    # hparams['descriptor_fname'] = f'PACS/descriptors_pacs_{str.lower(args.targets[0])}'
+    
+    # hparams['descriptor_fname'] = 'PACS/descriptors_pacs_domain_bank_pacs'
+
+    # hparams['descriptor_fname'] = 'PACS/descriptors_pacs_domain_bank_pacs_no_merged'
+
+    # test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
 
     print("test_dataset_size: ", len(test_dataset))
 
 
 hparams['descriptor_fname'] = './descriptors/' + hparams['descriptor_fname']
-    
+
 
 print("Creating descriptors...")
 
@@ -158,6 +196,116 @@ def compute_description_encodings(model):
 def compute_label_encodings(model):
     label_encodings = F.normalize(model.encode_text(clip.tokenize([hparams['label_before_text'] + wordify(l) + hparams['label_after_text'] for l in label_to_classname]).to(hparams['device'])))
     return label_encodings
+
+
+def compute_description_encodings(model, description):
+    description_encodings = OrderedDict()
+
+    for k, v in description.items():
+        tokens = clip.tokenize(v).to(hparams['device'])
+        description_encodings[k] = F.normalize(model.encode_text(tokens).float())
+    return description_encodings
+
+def compute_label_encodings(model):
+
+    # st()
+
+    prompts = [hparams['label_before_text'] + wordify(l) + hparams['label_after_text']  for l in label_to_classname]
+
+    # st()
+
+    # label_encodings = F.normalize(
+    #     model.encode_text(
+    #     clip.tokenize(
+    #     prompts
+    #     ).to(hparams['device'])
+    #     )
+    #     )
+
+    with torch.no_grad():
+        text_inputs = torch.cat( [clip.tokenize(prompt) for prompt in prompts]).to(hparams['device'])
+        text_features = model.encode_text(text_inputs).float()
+        label_encodings = F.normalize(text_features)
+
+
+    # st()
+    # label_encodings > [7, 1024]
+    return prompts, label_encodings
+
+def compute_label_sentence_encodings(model):
+
+
+    prompts = ["a photo of a "+ wordify(l)  for l in label_to_classname]
+
+    # flag=0
+
+    # st()
+
+    # label_encodings = F.normalize(
+    #     model.encode_text( clip.tokenize(prompts).to(hparams['device']) ) #7,1024
+    #     )
+
+    # !!!
+    # 同时编码多个token 和 一个token的结果是不一样的..
+
+    with torch.no_grad():
+        text_inputs = torch.cat( [clip.tokenize(prompt) for prompt in prompts]).to(hparams['device'])
+        text_features = model.encode_text(text_inputs).float()
+        label_encodings = F.normalize(text_features)
+
+
+    # with torch.no_grad():
+    #     for prompt in prompts:
+    #         text = clip.tokenize(prompt).to(device)
+    #         text_features = model.encode_text(text).float()
+
+    #         text_features = text_features / text_features.norm(dim=1, keepdim=True)
+
+    #         if flag==0:
+    #             # text features have to be placed on cpu beacuse of the limitation of gpu memorys.
+    #             text_features_all = text_features.to('cpu')
+    #             flag = 1
+    #         else:
+    #             text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
+
+    # st()
+    # label_encodings > [7, 1024]
+    return prompts, label_encodings
+
+def compute_domain_label_sentence_encodings(model, domain=None):
+    # prompts = ["a {} photo of a "+ wordify(l)  for l in label_to_classname]
+    if domain is None:
+        prompts, class_num, domain_num = get_prompts(args.data, args.bank_type)
+    else:
+        prompts, class_num, domain_num = get_specific_prompts(args.data, domain)
+
+    # !!!
+    # 同时编码多个token 和 一个token的结果是不一样的..
+
+    with torch.no_grad():
+        text_inputs = torch.cat( [clip.tokenize(prompt) for prompt in prompts]).to(hparams['device'])
+        text_features = model.encode_text(text_inputs).float()
+        label_encodings = F.normalize(text_features)
+
+
+    # with torch.no_grad():
+    #     for prompt in prompts:
+    #         text = clip.tokenize(prompt).to(device)
+    #         text_features = model.encode_text(text).float()
+
+    #         text_features = text_features / text_features.norm(dim=1, keepdim=True)
+
+    #         if flag==0:
+    #             # text features have to be placed on cpu beacuse of the limitation of gpu memorys.
+    #             text_features_all = text_features.to('cpu')
+    #             flag = 1
+    #         else:
+    #             text_features_all =  torch.cat((text_features_all, text_features.to('cpu')), dim=0)
+
+    # st()
+    # label_encodings > [7, 1024]
+    return prompts, label_encodings, class_num, domain_num 
+
 
 
 def aggregate_similarity(similarity_matrix_chunk, aggregation_method='mean'):

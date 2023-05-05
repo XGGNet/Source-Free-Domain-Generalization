@@ -4,6 +4,10 @@ import os
 import numpy as np
 import random
 
+import builtins
+
+
+
 from pdb import set_trace as st
 
 import cv2
@@ -41,8 +45,6 @@ def modify_descriptor(descriptor, apply_changes):
 def load_gpt_descriptions(hparams, classes_to_load=None):
     gpt_descriptions_unordered = load_json(hparams['descriptor_fname'])
     unmodify_dict = {}
-
-    # st()
     
     '''
     UCB - classes_to_load - None,  hparams['category_name_inclusion'] - 'preprend'
@@ -63,7 +65,6 @@ def load_gpt_descriptions(hparams, classes_to_load=None):
         for i, (k, v) in enumerate(gpt_descriptions.items()):
             if len(v) == 0:
                 v = ['']
-            
             
             word_to_add = wordify(k)
             
@@ -90,6 +91,7 @@ def load_gpt_descriptions(hparams, classes_to_load=None):
     # st()
 
     return gpt_descriptions, unmodify_dict
+
 
 def load_domain_gpt_descriptions(hparams, classes_to_load=None):
     _gpt_descriptions_unordered = load_json(hparams['descriptor_fname'])

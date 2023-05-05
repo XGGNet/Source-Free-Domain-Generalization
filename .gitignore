@@ -16,3 +16,4 @@ classify_by_description/openai_key.py
 
 
 .vscode/launch.json
+classify_by_description/data_dir/

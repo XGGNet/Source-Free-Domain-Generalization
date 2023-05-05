@@ -97,6 +97,27 @@ def get_prompts(dataset, bank_type):
 
     return [f"a {s[0]} photo of a {t[0]}" for t,s in text_all], len(categories), len(domain_bank)
 
+def get_specific_prompts(dataset, domain):
+    """
+    generate (class_num x domain_num) prompts from the combinations of categories and domain_bank
+    """
+    categories = categories_list[dataset]
+    # domain_bank = domain_banks_list[bank_type] if bank_type!='Task' else domain_banks_list[dataset]
+
+    text_target = [[a] for a in categories]
+    # text_domain = [[a] for a in domain_bank]
+    text_domain = [[domain]]
+
+
+    text_all = []
+
+    for t in text_target:
+        for s in text_domain:
+            text_all.append([t,s])
+
+    return [f"a {s[0]} photo of a {t[0]}" for t,s in text_all], len(categories), len(text_domain)
+
+
 def get_std_prompts(dataset):
     """
     generate (class_num x domain_num) prompts from the combinations of categories and domain_bank
